@@ -2,6 +2,11 @@
 
 A multi-page Streamlit app that fetches your parkrun results from [parkrun UK](https://www.parkrun.org.uk) and lets you explore runs over time and compare with friends or family.
 
+**Use the app**
+
+- **Run online:** [https://ph-parkrun-app.streamlit.app/](https://ph-parkrun-app.streamlit.app/) — use it in the browser, no install needed.
+- **Run locally:** Download or clone this project and follow the setup below.
+
 ## Setup
 
 ```bash

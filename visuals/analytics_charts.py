@@ -110,6 +110,7 @@ def render_analytics_charts(
     st.caption("Each point is a run, showing its finish time in minutes. PBs and the latest run are highlighted.")
     fig_strip = go.Figure()
     athlete_names_in_plot = [a["name"] for a in athletes if a["id"] in athlete_dfs]
+    strip_spacing = 2 if len(athlete_names_in_plot) > 1 else 1.5  # gap between strips; larger when multiple athletes
 
     for idx, a in enumerate(athletes):
         aid, aname = a["id"], a["name"]
@@ -133,7 +134,7 @@ def render_analytics_charts(
         seed = int(aid) % 100000
         run_idx = df_plot["run_index"].astype(int).values
         jitter = (((run_idx * 1103515245 + seed) % 1000) / 1000.0 - 0.5) * 0.6
-        y_vals = (idx + jitter).tolist()
+        y_vals = (idx * strip_spacing + jitter).tolist()
 
         fig_strip.add_trace(
             go.Scatter(
@@ -160,7 +161,7 @@ def render_analytics_charts(
                 pb_valid = pb_tmin.notna()
                 df_pb = df_pb.loc[pb_valid]
                 pb_tmin = pb_tmin.loc[pb_valid]
-                pb_y = [idx] * len(df_pb)
+                pb_y = [idx * strip_spacing] * len(df_pb)
                 fig_strip.add_trace(
                     go.Scatter(
                         x=pb_tmin.tolist(),
@@ -187,7 +188,7 @@ def render_analytics_charts(
             fig_strip.add_trace(
                 go.Scatter(
                     x=[float(latest_tmin)],
-                    y=[idx],
+                    y=[idx * strip_spacing],
                     mode="markers",
                     name="Latest run" if idx == 0 else None,
                     marker=dict(
@@ -201,16 +202,32 @@ def render_analytics_charts(
 
     fig_strip.update_layout(
         xaxis_title="Time (minutes)",
-        yaxis_title="Runner",
-        height=max(250, 120 + 40 * len(athlete_names_in_plot)),
+        height=max(250, 120 + int(40 * strip_spacing * len(athlete_names_in_plot))),
         margin=dict(b=40),
     )
+    
     if athlete_names_in_plot:
+        strip_centers = [i * strip_spacing + strip_spacing / 2 for i in range(len(athlete_names_in_plot))]
         fig_strip.update_yaxes(
             tickmode="array",
-            tickvals=list(range(len(athlete_names_in_plot))),
-            ticktext=athlete_names_in_plot,
+            tickvals=strip_centers,
+            showticklabels=False,
+            title_text="",
+            showgrid=False,
+            gridwidth=1,
+            zeroline=False
         )
+        for i, name in enumerate(athlete_names_in_plot):
+            fig_strip.add_annotation(
+                x=0.5,
+                xref="paper",
+                y= i * strip_spacing + 0.5,
+                yref="y",
+                text=name,
+                yanchor="bottom",
+                showarrow=False,
+                font=dict(size=12),
+            )
     st.plotly_chart(fig_strip, use_container_width=True)
 
     # ----- Age grade distribution (strip plot) -----
@@ -245,7 +262,7 @@ def render_analytics_charts(
         seed = int(aid) % 100000
         run_idx = df_plot["run_index"].astype(int).values
         jitter = (((run_idx * 1103515245 + seed) % 1000) / 1000.0 - 0.5) * 0.6
-        y_vals = (idx + jitter).tolist()
+        y_vals = (idx * strip_spacing + jitter).tolist()
 
         fig_age.add_trace(
             go.Scatter(
@@ -272,7 +289,7 @@ def render_analytics_charts(
                 pb_valid = pb_ag.notna()
                 df_pb = df_pb.loc[pb_valid]
                 pb_ag = pb_ag.loc[pb_valid]
-                pb_y = [idx] * len(df_pb)
+                pb_y = [idx * strip_spacing] * len(df_pb)
                 fig_age.add_trace(
                     go.Scatter(
                         x=pb_ag.tolist(),
@@ -299,7 +316,7 @@ def render_analytics_charts(
             fig_age.add_trace(
                 go.Scatter(
                     x=[float(latest_ag)],
-                    y=[idx],
+                    y=[idx * strip_spacing],
                     mode="markers",
                     name="Latest run" if idx == 0 else None,
                     marker=dict(
@@ -313,17 +330,34 @@ def render_analytics_charts(
 
     fig_age.update_layout(
         xaxis_title="Age grade (%)",
-        yaxis_title="Runner",
-        height=max(250, 120 + 40 * len(athlete_names_in_plot)),
+        height=max(250, 120 + int(40 * strip_spacing * len(athlete_names_in_plot))),
         margin=dict(b=40),
     )
     fig_age.update_xaxes(tickformat=".1f", ticksuffix="%")
+
+
     if athlete_names_in_plot:
+        strip_centers = [i * strip_spacing + strip_spacing / 2 for i in range(len(athlete_names_in_plot))]
         fig_age.update_yaxes(
             tickmode="array",
-            tickvals=list(range(len(athlete_names_in_plot))),
-            ticktext=athlete_names_in_plot,
+            tickvals=strip_centers,
+            showticklabels=False,
+            title_text="",
+            showgrid=False,
+            gridwidth=1,
+            zeroline=False
         )
+        for i, name in enumerate(athlete_names_in_plot):
+            fig_age.add_annotation(
+                x=0.5,
+                xref="paper",
+                y= i * strip_spacing + 0.5,
+                yref="y",
+                text=name,
+                yanchor="bottom",
+                showarrow=False,
+                font=dict(size=12),
+            )
     st.plotly_chart(fig_age, use_container_width=True)
 
     # ----- Monthly runs per athlete (stacked) -----
