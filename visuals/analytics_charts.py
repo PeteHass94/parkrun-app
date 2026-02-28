@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -34,6 +36,28 @@ def _make_customdata(df_plot: pd.DataFrame):
     )
 
 
+def _shared_same_event_dates(athletes, athlete_dfs, start_date, end_date):
+    """Return set of (date, event) where every athlete has a run at that event on that date."""
+    sets_per_athlete = []
+    for a in athletes:
+        aid = a["id"]
+        if aid not in athlete_dfs:
+            continue
+        df_a = athlete_dfs[aid]
+        mask = (df_a["run_date"].dt.date >= start_date) & (
+            df_a["run_date"].dt.date <= end_date
+        )
+        df_plot = df_a.loc[mask]
+        if df_plot.empty or "event" not in df_plot.columns:
+            continue
+        events = df_plot["event"].fillna("—").astype(str)
+        dates = df_plot["run_date"].dt.date
+        sets_per_athlete.append(set(zip(dates, events)))
+    if len(sets_per_athlete) < 2:
+        return set()
+    return set.intersection(*sets_per_athlete)
+
+
 def render_analytics_charts(
     athletes,
     athlete_dfs,
@@ -50,9 +74,10 @@ def render_analytics_charts(
     # ----- Line chart -----
     st.markdown("#### Line chart")
     st.caption("Trend of the selected metric over time or run number for all selected runners.")
-    fig_line = go.Figure()
-    colors = ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3A7D44"]
-    for idx, a in enumerate(athletes):
+
+    # Athletes that have data in range (for line chart)
+    line_chart_athletes = []
+    for a in athletes:
         aid, aname = a["id"], a["name"]
         if aid not in athlete_dfs:
             continue
@@ -63,6 +88,21 @@ def render_analytics_charts(
         df_plot = df_a.loc[mask].sort_values(x_col).reset_index(drop=True)
         if df_plot.empty or y_col not in df_plot.columns or x_col not in df_plot.columns:
             continue
+        line_chart_athletes.append((aid, aname, df_plot))
+
+    show_highlight_toggle = len(line_chart_athletes) >= 2
+    shared_same_event = _shared_same_event_dates(athletes, athlete_dfs, start_date, end_date) if show_highlight_toggle else set()
+    highlight_same_event = False
+    if show_highlight_toggle:
+        highlight_same_event = st.checkbox(
+            "Highlight runs where all athletes were at the same event on the same day",
+            value=bool(shared_same_event),
+            key="line_chart_highlight_same_event",
+        )
+
+    fig_line = go.Figure()
+    colors = ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3A7D44"]
+    for idx, (aid, aname, df_plot) in enumerate(line_chart_athletes):
         if x_col == "run_date":
             x_vals = df_plot["run_date"].tolist()
         else:
@@ -81,6 +121,46 @@ def render_analytics_charts(
                 hovertemplate=hover_template,
             )
         )
+
+    # Highlight same event / same day when requested
+    if highlight_same_event and shared_same_event:
+        if x_col == "run_date":
+            shapes = []
+            for (d, _event) in shared_same_event:
+                ts = pd.Timestamp(datetime.combine(d, datetime.min.time()))
+                shapes.append(
+                    dict(
+                        type="line",
+                        x0=ts, x1=ts,
+                        y0=0, y1=1, yref="paper",
+                        line=dict(color="rgba(180,180,180,0.8)", width=1, dash="dot"),
+                    )
+                )
+            fig_line.update_layout(shapes=shapes)
+        else:
+            # x is run_index: overlay marker on each athlete's "same event" points
+            for idx, (aid, aname, df_plot) in enumerate(line_chart_athletes):
+                events = df_plot["event"].fillna("—").astype(str)
+                dates = df_plot["run_date"].dt.date
+                same_event_mask = np.array([(d, e) in shared_same_event for d, e in zip(dates, events)])
+                if not same_event_mask.any():
+                    continue
+                x_vals = df_plot.loc[same_event_mask, "run_index"].astype(int).tolist()
+                y_series = df_plot.loc[same_event_mask, y_col]
+                y_vals = [float(x) if pd.notna(x) and np.isfinite(x) else np.nan for x in y_series]
+                fig_line.add_trace(
+                    go.Scatter(
+                        x=x_vals,
+                        y=y_vals,
+                        mode="markers",
+                        name="Same event (all)" if idx == 0 else None,
+                        marker=dict(symbol="star", size=10, color=colors[idx % len(colors)], line=dict(width=1, color="white")),
+                        showlegend=(idx == 0),
+                        hovertemplate="Same event (all)<br>" + hover_template,
+                        customdata=_make_customdata(df_plot.loc[same_event_mask]),
+                    )
+                )
+
     fig_line.update_layout(
         xaxis_title=x_title,
         yaxis_title=y_title,
