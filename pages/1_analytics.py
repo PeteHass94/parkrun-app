@@ -165,7 +165,19 @@ start_date, end_date = st.slider(
     format="DD/MM/YYYY",
 )
 
-col_metric, col_xaxis = st.columns(2)
+# Build event list: all events that appear for any athlete; * if all athletes have run there
+all_events = set()
+events_per_athlete = {}
+for aid, df_a in athlete_dfs.items():
+    if "event" not in df_a.columns:
+        continue
+    evts = set(df_a["event"].fillna("—").astype(str).unique())
+    all_events |= evts
+    events_per_athlete[aid] = evts
+shared_events = set.intersection(*events_per_athlete.values()) if len(events_per_athlete) >= 2 else set()
+event_display_options = ["All events"] + [f"{e}*" if e in shared_events else e for e in sorted(all_events, key=lambda e: e.lower())] if all_events else ["All events"]
+
+col_metric, col_xaxis, col_event = st.columns(3)
 with col_metric:
     metric = st.selectbox(
         "Y-axis (metric to plot)",
@@ -178,6 +190,31 @@ with col_xaxis:
         ["Date", "Run number"],
         index=0,
     )
+with col_event:
+    selected_event_label = st.selectbox(
+        "Event",
+        event_display_options,
+        index=0,
+    )
+
+# Filter by event when one is selected
+charts_athlete_dfs = athlete_dfs
+if selected_event_label and selected_event_label != "All events":
+    selected_event_name = selected_event_label.rstrip("*")
+    charts_athlete_dfs = {}
+    for aid, df_a in athlete_dfs.items():
+        if "event" not in df_a.columns:
+            continue
+        df_ev = df_a.loc[df_a["event"].fillna("—").astype(str) == selected_event_name].copy()
+        if df_ev.empty:
+            continue
+        df_ev = df_ev.sort_values("run_date").reset_index(drop=True)
+        df_ev["run_index"] = np.arange(1, len(df_ev) + 1, dtype=int)
+        charts_athlete_dfs[aid] = df_ev
+    if not charts_athlete_dfs:
+        st.warning(f"No runs at **{selected_event_name}** for the selected runners in this date range.")
+else:
+    charts_athlete_dfs = athlete_dfs
 
 if metric == "Time (minutes)":
     y_col, y_title = "time_min", "Time (minutes)"
@@ -199,9 +236,9 @@ else:
 with st.expander("Raw data (points plotted)"):
     for a in athletes:
         aid, aname = a["id"], a["name"]
-        if aid not in athlete_dfs:
+        if aid not in charts_athlete_dfs:
             continue
-        df_a = athlete_dfs[aid]
+        df_a = charts_athlete_dfs[aid]
         mask = (df_a["run_date"].dt.date >= start_date) & (df_a["run_date"].dt.date <= end_date)
         df_plot = df_a.loc[mask].sort_values(x_col).reset_index(drop=True)
         if df_plot.empty or y_col not in df_plot.columns or x_col not in df_plot.columns:
@@ -227,7 +264,7 @@ with st.expander("Raw data (points plotted)"):
 
 render_analytics_charts(
     athletes=athletes,
-    athlete_dfs=athlete_dfs,
+    athlete_dfs=charts_athlete_dfs,
     start_date=start_date,
     end_date=end_date,
     x_col=x_col,
