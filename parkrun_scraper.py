@@ -79,6 +79,14 @@ def fetch_parkrunner_results(athlete_id: str) -> tuple[pd.DataFrame | None, str,
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
     except requests.RequestException as e:
+        err_str = str(e)
+        # 404 often happens on run days when parkrun's servers are overloaded
+        if "404" in err_str or "not found" in err_str.lower() or (
+            getattr(e, "response", None) is not None and getattr(e.response, "status_code", None) == 404
+        ):
+            return None, f"Athlete {athlete_id}", (
+                "parkrun's servers may be busy (e.g. on run days like Saturday). Please try again later."
+            )
         return None, f"Athlete {athlete_id}", f"Could not load results: {e}"
 
     soup = BeautifulSoup(resp.text, "html.parser")

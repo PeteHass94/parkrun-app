@@ -50,6 +50,7 @@ Welcome to **Parkrun Analytics**. This app fetches your (or any Parkrunner's) pu
 """)
 
 st.markdown("---")
+st.caption("⚠️ The app may not load data on Saturdays or other run days when parkrun’s servers are busy. If it fails, try again later.")
 st.subheader("Enter your parkrun athlete number")
 
 if "primary_athlete_id" not in st.session_state:
