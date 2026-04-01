@@ -1,4 +1,5 @@
-from datetime import datetime
+import datetime
+from typing import List, Dict, Set, Tuple, Any
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,11 @@ import streamlit as st
 
 
 def _hover_template() -> str:
+    """Return the HTML template string for chart hover tooltips.
+
+    Returns:
+        A string containing the formatted hover template.
+    """
     return (
         "Time: %{customdata[0]}<br>"
         "Date: %{customdata[1]}<br>"
@@ -17,7 +23,15 @@ def _hover_template() -> str:
     )
 
 
-def _make_customdata(df_plot: pd.DataFrame):
+def _make_customdata(df_plot: pd.DataFrame) -> List[Tuple]:
+    """Create custom data lists for each point in the Plotly charts.
+
+    Args:
+        df_plot: A DataFrame containing the plotting data for an athlete.
+
+    Returns:
+        A list of tuples containing the custom data for each point.
+    """
     date_str = df_plot["run_date"].dt.strftime("%d/%m/%y")
     event_col = (
         df_plot["event"].fillna("—").astype(str)
@@ -36,8 +50,23 @@ def _make_customdata(df_plot: pd.DataFrame):
     )
 
 
-def _shared_same_event_dates(athletes, athlete_dfs, start_date, end_date):
-    """Return set of (date, event) where every athlete has a run at that event on that date."""
+def _shared_same_event_dates(
+    athletes: List[Dict[str, str]],
+    athlete_dfs: Dict[str, pd.DataFrame],
+    start_date: datetime.date,
+    end_date: datetime.date
+) -> Set[Tuple[datetime.date, str]]:
+    """Return set of (date, event) where every athlete has a run at that event on that date.
+
+    Args:
+        athletes: List of athlete dictionaries with 'id' and 'name'.
+        athlete_dfs: Dictionary mapping athlete IDs to their results DataFrame.
+        start_date: The start date for filtering runs.
+        end_date: The end date for filtering runs.
+
+    Returns:
+        A set of (date, event_name) tuples representing shared events.
+    """
     sets_per_athlete = []
     for a in athletes:
         aid = a["id"]
@@ -59,16 +88,27 @@ def _shared_same_event_dates(athletes, athlete_dfs, start_date, end_date):
 
 
 def render_analytics_charts(
-    athletes,
-    athlete_dfs,
-    start_date,
-    end_date,
+    athletes: List[Dict[str, str]],
+    athlete_dfs: Dict[str, pd.DataFrame],
+    start_date: datetime.date,
+    end_date: datetime.date,
     x_col: str,
     x_title: str,
     y_col: str,
     y_title: str,
-):
-    """Render all analytics visuals (line chart, distributions, monthly charts)."""
+) -> None:
+    """Render all analytics visuals (line chart, distributions, monthly charts).
+
+    Args:
+        athletes: List of athlete dictionaries with 'id' and 'name'.
+        athlete_dfs: Dictionary mapping athlete IDs to their results DataFrame.
+        start_date: The start date for the charts.
+        end_date: The end date for the charts.
+        x_col: The DataFrame column name to use for the x-axis.
+        x_title: The title for the x-axis.
+        y_col: The DataFrame column name to use for the y-axis.
+        y_title: The title for the y-axis.
+    """
     hover_template = _hover_template()
 
     # ----- Line chart -----
@@ -127,7 +167,7 @@ def render_analytics_charts(
         if x_col == "run_date":
             shapes = []
             for (d, _event) in shared_same_event:
-                ts = pd.Timestamp(datetime.combine(d, datetime.min.time()))
+                ts = pd.Timestamp(datetime.datetime.combine(d, datetime.datetime.min.time()))
                 shapes.append(
                     dict(
                         type="line",
