@@ -1,15 +1,6 @@
 """
 parkrun Analytics — Home
 Welcome and explainer; enter your athlete ID to open analytics.
-
-cd "parkrun app"
-pip install -r requirements.txt
-streamlit run Home.py
-
-conda create --name streamlit_env
-conda activate streamlit_env
-pip install -r requirements.txt
-streamlit run Home.py
 """
 
 import streamlit as st

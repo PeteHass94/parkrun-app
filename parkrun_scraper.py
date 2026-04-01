@@ -5,17 +5,29 @@ Use respectfully: one request per athlete, personal/non-commercial use only.
 """
 
 import re
+import logging
 from datetime import datetime
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
+logger = logging.getLogger(__name__)
+
 BASE_URL = "https://www.parkrun.org.uk"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
-def _parse_time(time_str: str) -> float:
-    """Convert time string (MM:SS or H:MM:SS) to total seconds."""
+from typing import Optional, Tuple, Any
+
+def _parse_time(time_str: str) -> Optional[float]:
+    """Convert time string (MM:SS or H:MM:SS) to total seconds.
+
+    Args:
+        time_str: A string representing a time in MM:SS or H:MM:SS format.
+
+    Returns:
+        The total time in seconds as a float, or None if parsing fails.
+    """
     if not time_str or not time_str.strip():
         return None
     parts = time_str.strip().split(":")
@@ -32,16 +44,30 @@ def _parse_time(time_str: str) -> float:
     return None
 
 
-def _parse_age_grade(ag_str: str):
-    """Convert age grade string like '43.14%' to float."""
+def _parse_age_grade(ag_str: str) -> Optional[float]:
+    """Convert age grade string like '43.14%' to float.
+
+    Args:
+        ag_str: A string representing an age grade, e.g., '43.14%'.
+
+    Returns:
+        The age grade as a float, or None if parsing fails.
+    """
     if not ag_str:
         return None
     m = re.search(r"([\d.]+)", str(ag_str))
     return float(m.group(1)) if m else None
 
 
-def _parse_date(date_str: str) -> datetime | None:
-    """Parse DD/MM/YYYY to datetime."""
+def _parse_date(date_str: str) -> Optional[datetime]:
+    """Parse DD/MM/YYYY to datetime.
+
+    Args:
+        date_str: A string representing a date in DD/MM/YYYY format.
+
+    Returns:
+        A datetime object, or None if parsing fails.
+    """
     if not date_str or not date_str.strip():
         return None
     try:
@@ -50,14 +76,21 @@ def _parse_date(date_str: str) -> datetime | None:
         return None
 
 
-def _text(cell) -> str:
-    """Get stripped text from a BeautifulSoup cell."""
+def _text(cell: Any) -> str:
+    """Get stripped text from a BeautifulSoup cell.
+
+    Args:
+        cell: A BeautifulSoup element or None.
+
+    Returns:
+        The stripped text content of the cell, or an empty string if cell is None.
+    """
     if cell is None:
         return ""
     return (cell.get_text() or "").strip()
 
 
-def fetch_parkrunner_results(athlete_id: str) -> tuple[pd.DataFrame | None, str, str | None]:
+def fetch_parkrunner_results(athlete_id: str) -> Tuple[Optional[pd.DataFrame], str, Optional[str]]:
     """
     Fetch all results for a parkrunner from parkrun.org.uk.
 
@@ -65,8 +98,9 @@ def fetch_parkrunner_results(athlete_id: str) -> tuple[pd.DataFrame | None, str,
         athlete_id: Athlete number (e.g. '2099834' from URL .../parkrunner/2099834/all/).
 
     Returns:
-        (DataFrame, runner_name, error_message). On success error_message is None.
-        On failure DataFrame is None and runner_name is fallback "Athlete {id}".
+        A tuple of (DataFrame, runner_name, error_message).
+        On success, the DataFrame contains the runner's results and error_message is None.
+        On failure, the DataFrame is None and runner_name is a fallback string "Athlete {id}".
     """
     athlete_id = str(athlete_id).strip()
     if not athlete_id or not athlete_id.isdigit():
@@ -84,9 +118,11 @@ def fetch_parkrunner_results(athlete_id: str) -> tuple[pd.DataFrame | None, str,
         if "404" in err_str or "not found" in err_str.lower() or (
             getattr(e, "response", None) is not None and getattr(e.response, "status_code", None) == 404
         ):
+            logger.warning(f"parkrun server returned 404/not found for athlete {athlete_id}: {err_str}")
             return None, f"Athlete {athlete_id}", (
                 "parkrun's servers may be busy (e.g. on run days like Saturday). Please try again later."
             )
+        logger.error(f"Failed to fetch results for athlete {athlete_id}: {err_str}")
         return None, f"Athlete {athlete_id}", f"Could not load results: {e}"
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -149,6 +185,7 @@ def fetch_parkrunner_results(athlete_id: str) -> tuple[pd.DataFrame | None, str,
             break
 
     if not rows_out:
+        logger.error(f"No results table found on the page for athlete {athlete_id}")
         return None, runner_name, "No results table found for this athlete. Check the ID or try again later."
 
     df = pd.DataFrame(rows_out)
